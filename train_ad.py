@@ -30,6 +30,8 @@ def main():
     n_head = hp["head"]
     dropout = hp["dropout"]
     seed = hp["seed"]
+    max_seq_len = hp['max_seq_len']
+    train_history_len = hp['train_history_len']
 
     # --- Seeds ---
     torch.manual_seed(seed)
@@ -41,7 +43,7 @@ def main():
         "history_set/history_state.pkl",
         "history_set/history_action.pkl",
         "history_set/history_reward.pkl",
-        seq_len=horizon,
+        seq_len=train_history_len,
         action_dim=5
     )
     train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
@@ -57,7 +59,7 @@ def main():
         n_layer=n_layer,
         n_head=n_head,
         dropout=dropout,
-        max_seq_len=3 * horizon + 1
+        max_seq_len=max_seq_len
     ).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
