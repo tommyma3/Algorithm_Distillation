@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-class ADTransformerInterleaved(nn.Module):
+class ADTransformer(nn.Module):
     def __init__(self, state_dim, action_dim, n_embd=128, n_layer=4, n_head=4, dropout=0.1, max_seq_len=50000):
         super().__init__()
         self.n_embd = n_embd

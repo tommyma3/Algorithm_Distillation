@@ -9,14 +9,13 @@ import os
 import time
 import matplotlib.pyplot as plt
 
-from network import ADTransformerInterleaved
+from network import ADTransformer
 from ad_dataset import HistoryDataset
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 def main():
-    # --- Load hyperparameters ---
     with open("hyperparameters.yml", "r") as file:
         hp_all = yaml.safe_load(file)
         hp = hp_all["config"]
@@ -33,12 +32,10 @@ def main():
     max_seq_len = hp['max_seq_len']
     train_history_len = hp['train_history_len']
 
-    # --- Seeds ---
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
-    # --- Dataset ---
     dataset = HistoryDataset(
         "history_set/history_state.pkl",
         "history_set/history_action.pkl",
@@ -48,11 +45,10 @@ def main():
     )
     train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-    # --- Model ---
     state_dim = 2  # Darkroom states = (x, y)
     action_dim = 5  # 5 discrete actions
 
-    model = ADTransformerInterleaved(
+    model = ADTransformer(
         state_dim=state_dim,
         action_dim=action_dim,
         n_embd=n_embd,
@@ -62,13 +58,15 @@ def main():
         max_seq_len=max_seq_len
     ).to(device)
 
+    print(f"Max sequence length for transformer: {max_seq_len}")
+    print(f"Sequence length for each sampled history: {train_history_len}")
+
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     loss_fn = nn.CrossEntropyLoss()
 
     os.makedirs("models", exist_ok=True)
     os.makedirs("figs/loss", exist_ok=True)
 
-    # --- Training ---
     train_losses = []
 
     for epoch in range(num_epochs):
@@ -101,17 +99,17 @@ def main():
 
         # Save checkpoints
         if (epoch + 1) % 10 == 0:
-            torch.save(model.state_dict(), f"models/ad_interleaved_epoch{epoch+1}.pt")
+            torch.save(model.state_dict(), f"models/ad_epoch{epoch+1}.pt")
 
     # --- Save final model ---
-    torch.save(model.state_dict(), "models/ad_interleaved_final.pt")
+    torch.save(model.state_dict(), "models/ad_final.pt")
 
     # --- Plot loss ---
     plt.plot(train_losses)
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.title("AD Interleaved Transformer Training Loss")
-    plt.savefig("figs/loss/ad_interleaved_loss.png")
+    plt.title("AD Transformer Training Loss")
+    plt.savefig("figs/loss/ad_loss.png")
     plt.show()
 
 if __name__ == "__main__":

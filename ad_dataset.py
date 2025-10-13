@@ -16,7 +16,6 @@ class HistoryDataset(Dataset):
         self.history_action = torch.load(action_file, weights_only=False)
         self.history_reward = torch.load(reward_file, weights_only=False)
         
-        # Pre-convert lists to numpy arrays for efficiency
         for tid in self.history_state.keys():
             if isinstance(self.history_state[tid], list):
                 self.history_state[tid] = np.array(self.history_state[tid], dtype=np.float32)
@@ -32,7 +31,6 @@ class HistoryDataset(Dataset):
         self.task_lengths = {tid: len(self.history_state[tid]) for tid in self.task_ids}
 
     def __len__(self):
-        # Rough dataset size estimate (1 chunk per ~seq_len steps)
         return sum(max(1, self.task_lengths[tid] // self.seq_len) for tid in self.task_ids)
 
     def __getitem__(self, idx):

@@ -3,12 +3,12 @@ import torch.nn.functional as F
 import numpy as np
 import pickle
 import os
-import time
 import yaml
 import random
+import matplotlib.pyplot as plt
 
 from envs import darkroom_env
-from network import ADTransformerInterleaved
+from network import ADTransformer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     state_dim = 2
     action_dim = 5
     max_seq_len = 3 * horizon + 1
-    model = ADTransformerInterleaved(
+    model = ADTransformer(
         state_dim=state_dim,
         action_dim=action_dim,
         n_embd=n_embd,
@@ -138,7 +138,18 @@ if __name__ == "__main__":
         i_episode += 1
 
 
-            
+    plt.figure(figsize=(12, 6))
+    plt.plot(episode_rewards)
+    if len(episode_rewards) > 100:
+        moving_avg = np.convolve(episode_rewards, np.ones(100) / 100, mode='valid')
+        plt.plot(moving_avg, linewidth=3, label="Moving Average (100 episodes)")
+    plt.title(f'Total Reward per Episode with goal {goal}')
+    plt.xlabel('Episode')
+    plt.ylabel('Total Reward')
+    plt.grid(True)
+    plt.savefig(f"figs/eval_loss_goal{goal}")
+    plt.legend()
+                
 
 
         
