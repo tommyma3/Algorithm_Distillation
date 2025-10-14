@@ -12,7 +12,7 @@ from network import ADTransformer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-MODEL_PATH = "./models/ad_interleaved_epoch400.pt"
+MODEL_PATH = "./models/ad_final.pt"
 TEST_GOAL = "./history_set/test_goals.pkl"
 
 if __name__ == "__main__":
@@ -38,7 +38,6 @@ if __name__ == "__main__":
 
     state_dim = 2
     action_dim = 5
-    max_seq_len = 3 * horizon + 1
     model = ADTransformer(
         state_dim=state_dim,
         action_dim=action_dim,
@@ -98,15 +97,30 @@ if __name__ == "__main__":
             if time_step == 1:
                 t += 1
 
-            # Keep only the last max_seq_len steps
-            sequence_length = (max_seq_len - 1) // 3  # Divide by 3 because each step has (s,a,r)
-            states_truncated = all_states[-sequence_length:]
-            actions_truncated = all_actions[-sequence_length:]
-            rewards_truncated = all_rewards[-sequence_length:]
+
+            max_timesteps = (max_seq_len - 1) // 3  
+
+            available_timesteps = len(all_actions)  
+            use_timesteps = min(max_timesteps, available_timesteps)
+
+
+            if use_timesteps <= 0:
+                # No actions yet; use the most recent state only and sample random action
+                states_truncated = all_states[-1:]
+                actions_truncated = []
+                rewards_truncated = []
+            else:
+                states_truncated = all_states[-(use_timesteps + 1):]
+                actions_truncated = all_actions[-use_timesteps:]
+                rewards_truncated = all_rewards[-use_timesteps:]
 
             state_tensor = torch.from_numpy(np.array(states_truncated, dtype=np.float32)).unsqueeze(0).to(device)
-            action_tensor = torch.from_numpy(np.array(actions_truncated, dtype=np.float32)).unsqueeze(0).to(device)
-            reward_tensor = torch.from_numpy(np.array(rewards_truncated, dtype=np.float32)).unsqueeze(0).to(device)
+            if len(actions_truncated) == 0:
+                action_tensor = torch.zeros((1, 0, action_dim), dtype=torch.float32, device=device)
+                reward_tensor = torch.zeros((1, 0), dtype=torch.float32, device=device)
+            else:
+                action_tensor = torch.from_numpy(np.array(actions_truncated, dtype=np.float32)).unsqueeze(0).to(device)
+                reward_tensor = torch.from_numpy(np.array(rewards_truncated, dtype=np.float32)).unsqueeze(0).to(device)
 
             pred_action_onehot = model(state_tensor, action_tensor, reward_tensor)
             action = torch.argmax(pred_action_onehot, dim=-1).item()
