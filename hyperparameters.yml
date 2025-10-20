@@ -21,7 +21,7 @@ config:
   beta_2: 0.99
   dropout: 0.1
   shuffle: False
-  num_epochs: 50
+  num_epochs: 1000
   epoch: -1
   test_cov: -1.0
   horizon: -1
