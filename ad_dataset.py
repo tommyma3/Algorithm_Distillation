@@ -53,23 +53,17 @@ class HistoryDataset(Dataset):
             start = random.randint(0, T - self.seq_len - 1)
             end = start + self.seq_len
         else:
-            start, end = 0, T - 1  # leave one step for the target
+            start, end = 0, T  
 
         # Build subsequence
-        seq_states = states[start:end+1]  # includes final s_t
+        seq_states = states[start:end]  # includes final s_t
         seq_actions = actions[start:end]
         seq_rewards = rewards[start:end]
-
-        # Target is the next action after the final s_t
-        if end + 1 < len(actions):
-            target_action = actions[end + 1]
-        else:
-            target_action = actions[end]
 
         # Pad if too short
         pad_len = self.seq_len - len(seq_actions)
         if pad_len > 0:
-            pad_state = torch.zeros((pad_len + 1, seq_states.shape[1]))  # +1 for final s_t
+            pad_state = torch.zeros((pad_len, seq_states.shape[1]))
             pad_action = torch.zeros((pad_len, seq_actions.shape[1]))
             pad_reward = torch.zeros(pad_len)
 
@@ -79,14 +73,13 @@ class HistoryDataset(Dataset):
             seq_rewards = torch.cat([seq_rewards, pad_reward], dim=0)
 
         # Build mask
-        mask = torch.zeros(self.seq_len * 3 + 1, dtype=torch.bool)  # sequence length in tokens
+        mask = torch.zeros(self.seq_len * 3, dtype=torch.bool)  # sequence length in tokens
         valid_tokens = len(seq_actions)
-        mask[:3 * valid_tokens + 1] = True
+        mask[:3 * valid_tokens] = True
         
         return {
             "states": seq_states,     # (T+1, state_dim)
             "actions": seq_actions,   # (T, action_dim)
             "rewards": seq_rewards,   # (T,)
             "mask": mask,
-            "target_action": target_action,  # (action_dim,)
         }

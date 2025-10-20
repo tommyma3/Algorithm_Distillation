@@ -41,13 +41,11 @@ class ADTransformer(nn.Module):
         for t in range(T):
             tokens.append(self.state_emb(states[:, t, :]))
             token_types.append(torch.zeros(B, dtype=torch.long, device=device))  # state
+            tokens.append(self.action_emb(actions[:, t, :]))
+            token_types.append(torch.ones(B, dtype=torch.long, device=device))  # action
 
-            if t < T - 1:
-                tokens.append(self.action_emb(actions[:, t, :]))
-                token_types.append(torch.ones(B, dtype=torch.long, device=device))  # action
-
-                tokens.append(self.reward_emb(rewards[:, t].unsqueeze(-1)))
-                token_types.append(2 * torch.ones(B, dtype=torch.long, device=device))  # reward
+            tokens.append(self.reward_emb(rewards[:, t].unsqueeze(-1)))
+            token_types.append(2 * torch.ones(B, dtype=torch.long, device=device))  # reward
 
         x = torch.stack(tokens, dim=1)
         token_types = torch.stack(token_types, dim=1)
@@ -57,7 +55,6 @@ class ADTransformer(nn.Module):
         pos_embedding = self.pos_emb(positions)
 
         x = x + type_embedding + pos_embedding
-
 
         # Type and position embeddings
         type_embedding = self.type_emb(token_types.long())
@@ -73,9 +70,8 @@ class ADTransformer(nn.Module):
 
         x = self.norm(x)
 
-        # Predict next action based on the last state token
-        # Find last state token index: every 3 tokens (s, a, r)
-        last_state_idx = 3 * T - 3  # last s_T-1
-        output = self.head(x[:, last_state_idx, :])
+        state_idx = torch.arange(0, 3 * T, 3, device=device)
+        state_reps = x[:, state_idx, :]
+        output = self.head(state_reps)
 
         return output

@@ -78,11 +78,12 @@ def main():
             states = batch["states"].to(device)
             actions = batch["actions"].to(device)
             rewards = batch["rewards"].to(device)
-            target_action = batch["target_action"].to(device)
 
             pred = model(states, actions, rewards)
+            pred = pred.view(-1, action_dim)
 
-            target_idx = torch.argmax(target_action, dim=-1)
+            actions = actions.view(-1, action_dim)
+            target_idx = torch.argmax(actions, dim=-1)
             loss = loss_fn(pred, target_idx)
 
             optimizer.zero_grad()
