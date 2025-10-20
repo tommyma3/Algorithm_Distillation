@@ -24,7 +24,6 @@ if __name__ == "__main__":
     dim = hp["dim"]
     horizon = hp["H"]
     num_epochs = hp["num_epochs"]
-    lr = hp["lr"]
     n_embd = hp["embd"]
     n_layer = hp["layer"]
     n_head = hp["head"]

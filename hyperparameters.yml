@@ -14,10 +14,14 @@ config:
   embd: 64
   head: 4
   layer: 4
-  lr: 0.0003
+  lr_init: 0.000002  # Initial learning rate
+  lr_peak: 0.0003   # Peak learning rate for cosine schedule
+  batch_size: 128
+  beta_1: 0.9
+  beta_2: 0.99
   dropout: 0.1
   shuffle: False
-  num_epochs: 1000
+  num_epochs: 50
   epoch: -1
   test_cov: -1.0
   horizon: -1

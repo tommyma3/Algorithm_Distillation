@@ -19,7 +19,11 @@ class ADTransformer(nn.Module):
 
         # Transformer encoder-decoder (causal)
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=n_embd, nhead=n_head, dim_feedforward=4 * n_embd, dropout=dropout, batch_first=True
+            d_model=n_embd,
+            nhead=n_head,
+            dim_feedforward=2048,  # Fixed feedforward dimension as per Dark Room specs
+            dropout=dropout,
+            batch_first=True
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layer)
 
