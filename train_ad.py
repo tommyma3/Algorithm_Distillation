@@ -35,6 +35,7 @@ def main():
     seed = hp["seed"]
     max_seq_len = hp['max_seq_len']
     train_history_len = hp['train_history_len']
+    grad_clip = hp['grad_clip']
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -65,7 +66,7 @@ def main():
     print(f"Max sequence length for transformer: {max_seq_len}")
     print(f"Sequence length for each sampled history: {train_history_len}")
 
-    optimizer = optim.Adam(model.parameters(), lr=lr_peak, betas=(beta_1, beta_2), weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=lr_peak, betas=(beta_1, beta_2), weight_decay=1e-5)
 
     # Calculate total number of training steps (batches per epoch × number of epochs)
     num_training_steps = len(train_loader) * num_epochs
@@ -109,7 +110,7 @@ def main():
             actions = batch["actions"].to(device)
             rewards = batch["rewards"].to(device)
 
-            pred = model(states, actions, rewards)
+            pred = model(states, actions[:, :-1, :], rewards[:, :-1])
             pred = pred.view(-1, action_dim)
 
             actions = actions.view(-1, action_dim)
@@ -118,6 +119,7 @@ def main():
 
             optimizer.zero_grad()
             loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
             optimizer.step()
 
             epoch_loss += loss.item()

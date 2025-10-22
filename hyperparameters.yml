@@ -27,8 +27,9 @@ config:
   horizon: -1
   n_eval: 100
   seed: 0
-  max_seq_len: 50000
-  train_history_len: 200
+  max_seq_len: 1024
+  train_history_len: 300
+  grad_clip: 1.0
 
 ppo:
   total_timesteps: 50000

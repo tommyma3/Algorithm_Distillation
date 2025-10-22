@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
+import numpy
 
 class ADTransformer(nn.Module):
+
     def __init__(self, state_dim, action_dim, n_embd=128, n_layer=4, n_head=4, dropout=0.1, max_seq_len=50000):
         super().__init__()
         self.n_embd = n_embd
@@ -21,7 +23,7 @@ class ADTransformer(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=n_embd,
             nhead=n_head,
-            dim_feedforward=2048,  # Fixed feedforward dimension as per Dark Room specs
+            dim_feedforward=2048,
             dropout=dropout,
             batch_first=True
         )
@@ -30,51 +32,45 @@ class ADTransformer(nn.Module):
         self.norm = nn.LayerNorm(n_embd)
         self.head = nn.Linear(n_embd, action_dim)
 
+
+
     def forward(self, states, actions, rewards):
-        """
-        states:  (B, T, state_dim)
-        actions: (B, T, action_dim)
-        rewards: (B, T)
-        returns: (B, action_dim) predicted next action after the sequence
-        """
-        B, T, _ = states.shape
+
+        B, T, E = states.shape
         device = states.device
 
-        tokens, token_types = [], []
+        state_tokens = self.state_emb(states)
+        action_tokens = self.action_emb(actions)
+        reward_tokens = self.reward_emb(rewards.unsqueeze(-1))
 
-        for t in range(T):
-            tokens.append(self.state_emb(states[:, t, :]))
-            token_types.append(torch.zeros(B, dtype=torch.long, device=device))  # state
-            tokens.append(self.action_emb(actions[:, t, :]))
-            token_types.append(torch.ones(B, dtype=torch.long, device=device))  # action
+        tokens = torch.cat(
+            [torch.stack([state_tokens[:, t], action_tokens[:, t], reward_tokens[:, t]], dim=1)
+            for t in range(T - 1)] + [state_tokens[:, -1].unsqueeze(1)],
+            dim=1
+        )
 
-            tokens.append(self.reward_emb(rewards[:, t].unsqueeze(-1)))
-            token_types.append(2 * torch.ones(B, dtype=torch.long, device=device))  # reward
+        type_seq = []
+        for t in range(T - 1):
+            type_seq.extend([0, 1, 2])
+        type_seq.append(0)
+        type_seq = torch.tensor(type_seq, device=device).unsqueeze(0).expand(B, -1)
+        pos = torch.arange(tokens.size(1), device=device).unsqueeze(0).expand(B, -1)
 
-        x = torch.stack(tokens, dim=1)
-        token_types = torch.stack(token_types, dim=1)
+        x = tokens + self.type_emb(type_seq) + self.pos_emb(pos)
 
-        type_embedding = self.type_emb(token_types)
-        positions = torch.arange(x.size(1), device=device).unsqueeze(0).expand(B, -1)
-        pos_embedding = self.pos_emb(positions)
+        # type_embedding = self.type_emb(token_types)
+        # positions = torch.arange(x.size(1), device=device).unsqueeze(0).expand(B, -1)
+        # pos_embedding = self.pos_emb(positions)
 
-        x = x + type_embedding + pos_embedding
+        # x = x + type_embedding + pos_embedding
 
-        # Type and position embeddings
-        type_embedding = self.type_emb(token_types.long())
-        positions = torch.arange(x.size(1), device=device).unsqueeze(0).expand(B, -1)
-        pos_embedding = self.pos_emb(positions)
-
-        x = x + type_embedding + pos_embedding
-
-        # Causal mask: lower-triangular (prevent looking ahead)
         L = x.size(1)
-        causal_mask = torch.tril(torch.ones(L, L, device=device))
-        x = self.transformer(x, mask=(~causal_mask.bool()))
+        causal_mask = torch.triu(torch.ones(L, L, device=device), diagonal=1).bool()  # upper triangular
+        x = self.transformer(x, mask=causal_mask)
 
         x = self.norm(x)
 
-        state_idx = torch.arange(0, 3 * T, 3, device=device)
+        state_idx = torch.arange(0, L, 3, device=device)
         state_reps = x[:, state_idx, :]
         output = self.head(state_reps)
 
