@@ -59,27 +59,9 @@ class HistoryDataset(Dataset):
         seq_states = states[start:end]  # includes final s_t
         seq_actions = actions[start:end]
         seq_rewards = rewards[start:end]
-
-        # Pad if too short
-        pad_len = self.seq_len - len(seq_actions)
-        if pad_len > 0:
-            pad_state = torch.zeros((pad_len, seq_states.shape[1]))
-            pad_action = torch.zeros((pad_len, seq_actions.shape[1]))
-            pad_reward = torch.zeros(pad_len)
-
-            seq_states = torch.cat([seq_states, pad_state], dim=0)
-
-            seq_actions = torch.cat([seq_actions, pad_action], dim=0)
-            seq_rewards = torch.cat([seq_rewards, pad_reward], dim=0)
-
-        # Build mask
-        mask = torch.zeros(self.seq_len * 3, dtype=torch.bool)  # sequence length in tokens
-        valid_tokens = len(seq_actions)
-        mask[:3 * valid_tokens] = True
         
         return {
             "states": seq_states,     # (T+1, state_dim)
             "actions": seq_actions,   # (T, action_dim)
             "rewards": seq_rewards,   # (T,)
-            "mask": mask,
         }

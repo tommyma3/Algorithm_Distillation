@@ -31,9 +31,6 @@ if __name__ == "__main__":
     seed = hp["seed"]
     max_seq_len = hp["max_seq_len"]
 
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
 
     state_dim = 2
     action_dim = 5
@@ -52,6 +49,8 @@ if __name__ == "__main__":
 
     test_goals = torch.load(TEST_GOAL, weights_only=False)
     goal = random.choice(test_goals)
+    goal = test_goals[2]
+    
 
     print(f"\nEvaluating goal {goal}")
 
@@ -72,6 +71,7 @@ if __name__ == "__main__":
         all_states.append(state)
         current_ep_reward = 0
         
+        '''
         if time_step == 0:
             action = env.action_space.sample()
             next_state, reward, terminated, truncated, _ = env.step(action)
@@ -90,12 +90,9 @@ if __name__ == "__main__":
 
             if done:
                 continue
+        '''
 
         for t in range(1, horizon + 1):
-
-            if time_step == 1:
-                t += 1
-
 
             max_timesteps = (max_seq_len - 1) // 3  
 
@@ -122,8 +119,8 @@ if __name__ == "__main__":
                 reward_tensor = torch.from_numpy(np.array(rewards_truncated, dtype=np.float32)).unsqueeze(0).to(device)
 
             pred_action_onehot = model(state_tensor, action_tensor, reward_tensor)
-            action = torch.argmax(pred_action_onehot, dim=-1).item()
-
+            action = torch.argmax(pred_action_onehot[0, -1]).item()
+            
             next_state, reward, terminated, truncated, _ = env.step(action)
 
             action_one_hot = np.zeros(action_dim)

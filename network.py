@@ -47,14 +47,6 @@ class ADTransformer(nn.Module):
         interleaved = stacked_inputs.reshape(B, (T - 1) * 3, self.n_embd)
         tokens = torch.cat([interleaved, state_tokens[:, -1].unsqueeze(1)], dim=1)
 
-        '''
-        tokens = torch.cat(
-            [torch.stack([state_tokens[:, t], action_tokens[:, t], reward_tokens[:, t]], dim=1)
-            for t in range(T - 1)] + [state_tokens[:, -1].unsqueeze(1)],
-            dim=1
-        )
-        '''
-
         type_seq = []
         for t in range(T - 1):
             type_seq.extend([0, 1, 2])
@@ -63,12 +55,6 @@ class ADTransformer(nn.Module):
         pos = torch.arange(tokens.size(1), device=device).unsqueeze(0).expand(B, -1)
 
         x = tokens + self.type_emb(type_seq) + self.pos_emb(pos)
-
-        # type_embedding = self.type_emb(token_types)
-        # positions = torch.arange(x.size(1), device=device).unsqueeze(0).expand(B, -1)
-        # pos_embedding = self.pos_emb(positions)
-
-        # x = x + type_embedding + pos_embedding
 
         L = x.size(1)
         causal_mask = torch.triu(torch.ones(L, L, device=device), diagonal=1).bool()  # upper triangular

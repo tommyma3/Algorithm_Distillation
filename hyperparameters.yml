@@ -4,7 +4,7 @@ config:
   envs_eval: 100
   hists: 1
   samples: 1
-  H: 50
+  H: 20
   dim: 9
   lin_d: 2
   var: 0.0
