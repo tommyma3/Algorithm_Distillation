@@ -63,6 +63,13 @@ def main():
         max_seq_len=max_seq_len
     ).to(device)
 
+    checkpoint_path = "models/ad_final.pt"
+    if os.path.exists(checkpoint_path):
+        print(f"Loading model weights from {checkpoint_path}")
+        model.load_state_dict(torch.load(checkpoint_path))
+    else:
+        print("No checkpoint found, starting from scratch.")
+
     print(f"Max sequence length for transformer: {max_seq_len}")
     print(f"Sequence length for each sampled history: {train_history_len}")
 
