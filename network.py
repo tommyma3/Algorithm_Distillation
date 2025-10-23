@@ -43,11 +43,17 @@ class ADTransformer(nn.Module):
         action_tokens = self.action_emb(actions)
         reward_tokens = self.reward_emb(rewards.unsqueeze(-1))
 
+        stacked_inputs = torch.stack([state_tokens[:, :-1], action_tokens, reward_tokens], dim=2)
+        interleaved = stacked_inputs.reshape(B, (T - 1) * 3, self.n_embd)
+        tokens = torch.cat([interleaved, state_tokens[:, -1].unsqueeze(1)], dim=1)
+
+        '''
         tokens = torch.cat(
             [torch.stack([state_tokens[:, t], action_tokens[:, t], reward_tokens[:, t]], dim=1)
             for t in range(T - 1)] + [state_tokens[:, -1].unsqueeze(1)],
             dim=1
         )
+        '''
 
         type_seq = []
         for t in range(T - 1):
