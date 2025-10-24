@@ -9,7 +9,7 @@ class PPOWrapper(PPO):
         batch_size = config['batch_size']
         n_epochs = config['n_epochs']
         lr = config['source_lr']
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device = config['device']
         env = env
 
         super(PPOWrapper, self).__init__(policy=policy,

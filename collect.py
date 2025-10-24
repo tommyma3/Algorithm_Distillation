@@ -23,6 +23,9 @@ def worker(arg, config, traj_dir, env_idx, history, file_name):
     
     alg_name = config['alg']
     seed = config['alg_seed'] + env_idx
+
+    config['device'] = 'cpu'
+
     alg = ALGORITHM[alg_name](config, env, seed, traj_dir)
     callback = HistoryLoggerCallback(config['env'], env_idx, history)
     log_name = f'{file_name}_{env_idx}'
@@ -32,14 +35,14 @@ def worker(arg, config, traj_dir, env_idx, history, file_name):
               log_interval=1,
               tb_log_name=log_name,
               reset_num_timesteps=True,
-              progress_bar=False)
+              progress_bar=True)
     env.close()
 
 
 
 if __name__ == '__main__':
     config = get_config("config/env/darkroom.yaml")
-    config = get_config("config/algorithm/ppo_darkroom.yaml")
+    config.update(get_config("config/algorithm/ppo_darkroom.yaml"))
 
     if not os.path.exists("logs"):
         os.makedirs("logs", exist_ok=True)
