@@ -45,17 +45,17 @@ if __name__ == '__main__':
     config = get_config("config/env/darkroom.yaml")
     config.update(get_config("config/algorithm/ppo_darkroom.yaml"))
 
-    if not os.path.exists("logs"):
-        os.makedirs("logs", exist_ok=True)
+    if not os.path.exists("datasets"):
+        os.makedirs("datasets", exist_ok=True)
         
-    traj_dir = 'runs'
+    traj_dir = 'datasets'
 
     train_args, test_args = SAMPLE_ENVIRONMENT[config['env']](config, shuffle=False)
     total_args = train_args + test_args
     n_envs = len(total_args)
 
     file_name = get_traj_file_name(config)
-    path = f'logs/{file_name}.hdf5'
+    path = f'datasets/{file_name}.hdf5'
     
     start_time = datetime.now()
     print(f'Training started at {start_time}')
