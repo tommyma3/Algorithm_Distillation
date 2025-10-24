@@ -193,6 +193,7 @@ if __name__ == '__main__':
                 model.train()
                 torch.cuda.empty_cache()
 
+            '''
             # Generation
             if step % config['gen_interval'] == 0:
                 model.eval()
@@ -233,6 +234,7 @@ if __name__ == '__main__':
                 print(f'Elapsed time: {gen_end_time - gen_start_time}')
                 model.train()
                 torch.cuda.empty_cache()      
+            '''
 
             pbar.update(1)
 
