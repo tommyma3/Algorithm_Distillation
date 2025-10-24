@@ -41,13 +41,14 @@ def worker(arg, config, traj_dir, env_idx, history, file_name):
 
 
 if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn')
     config = get_config("config/env/darkroom.yaml")
     config.update(get_config("config/algorithm/ppo_darkroom.yaml"))
 
     if not os.path.exists("logs"):
         os.makedirs("logs", exist_ok=True)
         
-    traj_dir = 'logs'
+    traj_dir = 'runs'
 
     train_args, test_args = SAMPLE_ENVIRONMENT[config['env']](config, shuffle=False)
     total_args = train_args + test_args
