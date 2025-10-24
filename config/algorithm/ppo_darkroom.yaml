@@ -1,4 +1,4 @@
-include: cfg/alg/ppo_base.yaml
+include: config/algorithm/ppo_base.yaml
 
 n_steps: 20
 batch_size: 50
