@@ -8,3 +8,13 @@ Evaluation goals:  [array([4, 2]), array([5, 6]), array([6, 8]), array([7, 2]), 
 Mean reward per environment: [17.062 17.102 14.094  0.022 16.1   14.434  6.82   0.49 ]  
 Overall mean reward:  10.7655  
 Std deviation:  7.961595929837183  
+
+### Figures
+Training Loss:  
+![training_loss](./figs/training_loss.png)
+
+Testing Loss:
+![testing_loss](./figs/testing_loss.png)
+
+Learning Rate Schedule
+![lr_schedule](./figs/lr_schedule.png)
