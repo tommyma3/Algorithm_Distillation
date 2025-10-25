@@ -52,20 +52,6 @@ if __name__ == '__main__':
     config['traj_dir'] = './datasets'
     config['mixed_precision'] = 'fp32'
 
-    code_dir = path.join(config['log_dir'], "code_" + datetime.now().strftime('%Y%m%d_%H%M%S'))
-    mf = ModuleFinder([os.getcwd()])
-    mf.run_script(__file__)
-    for name, module in mf.modules.items():
-        if module.__file__ is None:
-            continue
-        rel_path = path.relpath(module.__file__)
-        new_path = path.join(code_dir, rel_path)
-        new_dirname = path.dirname(new_path)
-        os.makedirs(new_dirname, mode=0o750, exist_ok=True)
-        shutil.copy2(rel_path, new_path)
-    print(f'Code saved to {code_dir}')
-
-
     accelerator = Accelerator(mixed_precision='no')
     config['device'] = accelerator.device
     print('Using Device: ', config['device'])
@@ -93,19 +79,15 @@ if __name__ == '__main__':
     lr_sched = get_cosine_schedule_with_warmup(optimizer, config['num_warmup_steps'], config['train_timesteps'])
     step = 0
 
-    '''
-    # Resume checkpoint
-    if args.resume:
-        ckpt_paths = sorted(glob(path.join(config['log_dir'], 'ckpt-*.pt')))
-        if len(ckpt_paths) > 0:
-            ckpt_path = ckpt_paths[-1]
-            ckpt = torch.load(ckpt_path)
-            model.load_state_dict(ckpt['model'])
-            optimizer.load_state_dict(ckpt['optimizer'])
-            lr_sched.load_state_dict(ckpt['lr_sched'])
-            step = ckpt['step']
-            print(f'Checkpoint loaded from {ckpt_path}')
-    '''    
+    ckpt_paths = sorted(glob(path.join(config['log_dir'], 'ckpt-*.pt')))
+    if len(ckpt_paths) > 0:
+        ckpt_path = ckpt_paths[-1]
+        ckpt = torch.load(ckpt_path)
+        model.load_state_dict(ckpt['model'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        lr_sched.load_state_dict(ckpt['lr_sched'])
+        step = ckpt['step']
+        print(f'Checkpoint loaded from {ckpt_path}')
 
     env_name = config['env']
     train_env_args, test_env_args = SAMPLE_ENVIRONMENT[env_name](config)
@@ -192,49 +174,6 @@ if __name__ == '__main__':
                 print(f'Elapsed time: {eval_end_time - eval_start_time}')
                 model.train()
                 torch.cuda.empty_cache()
-
-            '''
-            # Generation
-            if step % config['gen_interval'] == 0:
-                model.eval()
-                gen_start_time = datetime.now()
-                print(f'Generation started at {gen_start_time}')
-
-                with torch.no_grad():
-                    output = model.evaluate_in_context(envs, config['train_source_timesteps'])
-                    
-                    train_rewards = output['reward_episode'][:len(train_env_args)]
-                    test_rewards = output['reward_episode'][len(train_env_args):]
-
-                    log_in_context(values=train_rewards,
-                                   max_reward=config['max_reward'],
-                                   success=None,
-                                   episode_length = config['horizon'],
-                                   tag='train_gen/reward_episode',
-                                   title='',
-                                   xlabel='In-context steps',
-                                   ylabel='Reward',
-                                   step=step,
-                                   writer=writer)
-
-                    log_in_context(values=test_rewards,
-                                   max_reward=config['max_reward'],
-                                   success=None,
-                                   episode_length = config['horizon'],
-                                   tag='test_gen/reward_episode',
-                                   title='',
-                                   xlabel='In-context steps',
-                                   ylabel='Reward',
-                                   step=step,
-                                   writer=writer)
-
-                gen_end_time = datetime.now()
-                print()
-                print(f'Generation ended at {gen_end_time}')
-                print(f'Elapsed time: {gen_end_time - gen_start_time}')
-                model.train()
-                torch.cuda.empty_cache()      
-            '''
 
             pbar.update(1)
 

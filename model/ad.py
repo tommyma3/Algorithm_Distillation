@@ -17,8 +17,6 @@ class AD(torch.nn.Module):
         self.mixed_precision = config['mixed_precision']
         self.grid_size = config['grid_size']
 
-        # TransformerEncoder (PyTorch) replacement for tiny_llama.Transformer
-        # Use learned positional embeddings to mimic tiny-llama positional behavior.
         tf_n_embd = config['tf_n_embd']
         tf_n_head = config.get('tf_n_head', 4)
         tf_n_layer = config.get('tf_n_layer', 4)
@@ -34,18 +32,15 @@ class AD(torch.nn.Module):
         )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=tf_n_layer)
 
-        # embeddings and heads (same as original)
         self.embed_context = nn.Linear(config['dim_states'] * 2 + config['num_actions'] + 1, tf_n_embd)
         self.embed_query_state = nn.Embedding(config['grid_size'] * config['grid_size'], tf_n_embd)
         self.pred_action = nn.Linear(tf_n_embd, config['num_actions'])
 
         self.loss_fn = nn.CrossEntropyLoss(reduction='mean', label_smoothing=config['label_smoothing'])
 
-        # small init for pos_embedding
         nn.init.trunc_normal_(self.pos_embedding, std=0.02)
 
     def _apply_positional_embedding(self, x):
-        # x: (batch, seq, emb)
         seq_len = x.size(1)
         x = x + self.pos_embedding[:, :seq_len, :]
         return x
@@ -56,8 +51,6 @@ class AD(torch.nn.Module):
         We accept (batch, seq, emb) and return (batch, seq, emb).
         dtype argument is accepted for API compatibility - we won't dynamically change types here.
         """
-        # Optionally cast for mixed precision; keep as float32 for stability of linear heads
-        # If mixed_precision used elsewhere, automatic casting can handle it in training loop.
         x = self._apply_positional_embedding(x)
         out = self.transformer_encoder(x)  # (batch, seq, emb)
         return out
@@ -78,7 +71,6 @@ class AD(torch.nn.Module):
         context_embed = self.embed_context(context)
         context_embed, _ = pack([context_embed, query_states_embed], 'b * d')
 
-        # call our encoder wrapper
         transformer_output = self.transformer(context_embed,
                                               max_seq_length=self.max_seq_length,
                                               dtype=self.mixed_precision)
@@ -101,7 +93,6 @@ class AD(torch.nn.Module):
 
         reward_episode = np.zeros(vec_env.num_envs)
 
-        # Get inital states embeddings
         query_states = vec_env.reset()
         query_states = torch.tensor(query_states, device=self.device, requires_grad=False, dtype=torch.long)
         query_states = rearrange(query_states, 'e d -> e 1 d')
