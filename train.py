@@ -86,7 +86,7 @@ if __name__ == '__main__':
         model.load_state_dict(ckpt['model'])
         optimizer.load_state_dict(ckpt['optimizer'])
         lr_sched.load_state_dict(ckpt['lr_sched'])
-        step = 0
+        step = ckpt['step']
         print(f'Checkpoint loaded from {ckpt_path}')
 
     env_name = config['env']

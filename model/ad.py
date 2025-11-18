@@ -3,63 +3,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import pack, rearrange, repeat
-from typing import List, Tuple
 
 from env import map_dark_states, map_dark_states_inverse
 
 class AD(torch.nn.Module):
-
-    class TransformerEncoderLayerWithAttn(nn.Module):
-        """
-        A thin reimplementation of TransformerEncoderLayer forward that
-        returns both the output and the attention weights from self-attention.
-        This mirrors PyTorch's layer behaviour (norms, dropouts, feedforward),
-        but explicitly asks self_attn for weights (need_weights=True).
-        """
-        def __init__(self, base_layer: nn.TransformerEncoderLayer):
-            super().__init__()
-            # copy modules from provided base_layer instance
-            # base_layer is an instance of nn.TransformerEncoderLayer you created
-            self.self_attn = base_layer.self_attn
-            self.linear1 = base_layer.linear1
-            self.dropout = base_layer.dropout
-            self.linear2 = base_layer.linear2
-            self.norm1 = base_layer.norm1
-            self.norm2 = base_layer.norm2
-            self.dropout1 = base_layer.dropout1
-            self.dropout2 = base_layer.dropout2
-            self.activation = base_layer.activation
-
-        def forward(self, src: torch.Tensor, src_mask=None, src_key_padding_mask=None
-                ) -> Tuple[torch.Tensor, torch.Tensor]:
-            """
-            Returns:
-                src_out: Tensor shape (B, L, D)
-                attn_weights: Tensor shape (B, num_heads, L, L)
-            """
-            # Self-attention: ask for weights directly
-            # note: average_attn_weights=False to get per-head weights (PyTorch >=1.11)
-            attn_output, attn_weights = self.self_attn(
-                src, src, src,
-                attn_mask=src_mask,
-                key_padding_mask=src_key_padding_mask,
-                need_weights=True,
-                average_attn_weights=False
-            )  # attn_output: (B, L, D), attn_weights: (B, num_heads, L, L) or (B, L, L) depending on PyTorch version
-            # ensure attn_weights has shape (B, heads, L, L)
-            if attn_weights.dim() == 3:
-                # older behaviour: (B, L, L) => no per-head; treat as single head
-                attn_weights = attn_weights.unsqueeze(1)
-
-            src = src + self.dropout1(attn_output)
-            src = self.norm1(src)
-            # feedforward
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-            src = src + self.dropout2(src2)
-            src = self.norm2(src)
-            return src, attn_weights
-
-
     def __init__(self, config):
         super(AD, self).__init__()
 
@@ -76,17 +23,14 @@ class AD(torch.nn.Module):
         tf_dim_feedforward = config.get('tf_dim_feedforward', tf_n_embd * 4)
         self.pos_embedding = nn.Parameter(torch.zeros(1, self.max_seq_length, tf_n_embd))
 
-        base_layer = nn.TransformerEncoderLayer(
+        encoder_layer = nn.TransformerEncoderLayer(
             d_model=tf_n_embd,
             nhead=tf_n_head,
             dim_feedforward=tf_dim_feedforward,
             activation='gelu',
-            batch_first=True,
+            batch_first=True,  # so inputs are (batch, seq, emb)
         )
-
-        self.encoder_layers = nn.ModuleList([
-            AD.TransformerEncoderLayerWithAttn(base_layer) for _ in range(tf_n_layer)
-        ])
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=tf_n_layer)
 
         self.embed_context = nn.Linear(config['dim_states'] * 2 + config['num_actions'] + 1, tf_n_embd)
         self.embed_query_state = nn.Embedding(config['grid_size'] * config['grid_size'], tf_n_embd)
@@ -103,19 +47,13 @@ class AD(torch.nn.Module):
 
     def transformer(self, x, max_seq_length=None, dtype=None):
         """
-        Returns:
-            out: (batch, seq, emb)
-            attentions: list length=num_layers; each tensor (B, H, L, L)
+        Thin wrapper so existing code calling self.transformer(...) still works.
+        We accept (batch, seq, emb) and return (batch, seq, emb).
+        dtype argument is accepted for API compatibility - we won't dynamically change types here.
         """
         x = self._apply_positional_embedding(x)
-        attentions = []
-        src = x
-        # optional masks: you can pass src_mask or src_key_padding_mask if needed
-        for layer in self.encoder_layers:
-            src, attn = layer(src)
-            # attn shape -> (B, heads, L, L)
-            attentions.append(attn)
-        return src, attentions
+        out = self.transformer_encoder(x)  # (batch, seq, emb)
+        return out
 
     def forward(self, x):
         query_states = x['query_states'].to(self.device)  # (batch_size, dim_state)
@@ -133,7 +71,7 @@ class AD(torch.nn.Module):
         context_embed = self.embed_context(context)
         context_embed, _ = pack([context_embed, query_states_embed], 'b * d')
 
-        transformer_output, attentions = self.transformer(context_embed,
+        transformer_output = self.transformer(context_embed,
                                               max_seq_length=self.max_seq_length,
                                               dtype=self.mixed_precision)
 
@@ -146,11 +84,10 @@ class AD(torch.nn.Module):
 
         result['loss_action'] = loss_full_action
         result['acc_action'] = acc_full_action
-        result['attentions'] = attentions
 
         return result
 
-    def evaluate_in_context(self, vec_env, eval_timesteps, beam_k=0, sample=True, return_attentions=False):
+    def evaluate_in_context(self, vec_env, eval_timesteps, beam_k=0, sample=True):
         outputs = {}
         outputs['reward_episode'] = []
 
@@ -162,19 +99,12 @@ class AD(torch.nn.Module):
         query_states_embed = self.embed_query_state(map_dark_states(query_states, self.grid_size))
         transformer_input = query_states_embed
 
-        if return_attentions:
-            per_step_attentions = []
-            dones_history = []
-
         for step in range(eval_timesteps):
             query_states_prev = query_states.clone().detach().to(torch.float)
 
-            output, attentions = self.transformer(transformer_input,
+            output = self.transformer(transformer_input,
                                         max_seq_length=self.max_seq_length,
                                         dtype='fp32')
-
-            if return_attentions:
-                per_step_attentions.append([a.detach().cpu().clone() for a in attentions])
 
             logits = self.pred_action(output[:, -1])
 
@@ -186,9 +116,6 @@ class AD(torch.nn.Module):
                 actions = logits.argmax(dim=-1)
 
             query_states, rewards, dones, infos = vec_env.step(actions.cpu().numpy())
-
-            if return_attentions:
-                dones_history.append(dones.copy())
 
             actions = rearrange(actions, 'e -> e 1 1')
             actions = F.one_hot(actions, num_classes=self.config['num_actions'])
@@ -223,9 +150,5 @@ class AD(torch.nn.Module):
             transformer_input, _ = pack([context_embed, query_states_embed], 'e * h')
 
         outputs['reward_episode'] = np.stack(outputs['reward_episode'], axis=1)
-
-        if return_attentions:
-            outputs['attentions'] = per_step_attentions
-            outputs['dones_history'] = dones_history
 
         return outputs
