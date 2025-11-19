@@ -65,7 +65,7 @@ if __name__ == '__main__':
     train_dataset = ADDataset(config, config['traj_dir'], 'train', config['train_n_stream'], config['train_source_timesteps'])
     test_dataset = ADDataset(config, config['traj_dir'], 'test', 1, config['train_source_timesteps'])
 
-    train_dataloader = get_data_loader(test_dataset, batch_size=config['train_batch_size'], config=config, shuffle=True)
+    train_dataloader = get_data_loader(train_dataset, batch_size=config['train_batch_size'], config=config, shuffle=True)
     train_dataloader = next_dataloader(train_dataloader)
 
     test_dataloader = get_data_loader(test_dataset, batch_size=config['test_batch_size'], config=config, shuffle=False)

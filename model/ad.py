@@ -77,7 +77,9 @@ class AD(torch.nn.Module):
 
         result = {}
 
-        logits_actions = self.pred_action(transformer_output[:, self.n_transit-1])  # (batch_size, dim_action)
+        # The last token in the sequence is the query state embedding
+        # Predict action from this position
+        logits_actions = self.pred_action(transformer_output[:, -1])  # (batch_size, num_actions)
 
         loss_full_action = self.loss_fn(logits_actions, target_actions)
         acc_full_action = (logits_actions.argmax(dim=-1) == target_actions).float().mean()
