@@ -22,6 +22,9 @@ class AD(torch.nn.Module):
         tf_n_layer = config.get('tf_n_layer', 4)
         tf_dim_feedforward = config.get('tf_dim_feedforward', tf_n_embd * 4)
         self.pos_embedding = nn.Parameter(torch.zeros(1, self.max_seq_length, tf_n_embd))
+        
+        # Register causal mask buffer (will be created when needed)
+        self.register_buffer('causal_mask', None, persistent=False)
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=tf_n_embd,
@@ -45,14 +48,32 @@ class AD(torch.nn.Module):
         x = x + self.pos_embedding[:, :seq_len, :]
         return x
 
-    def transformer(self, x, max_seq_length=None, dtype=None):
+    def _get_causal_mask(self, seq_len):
+        """
+        Generate causal attention mask for autoregressive prediction.
+        Returns upper triangular matrix with -inf above diagonal.
+        """
+        if self.causal_mask is None or self.causal_mask.size(0) != seq_len:
+            # Create causal mask: upper triangular matrix with -inf
+            mask = torch.triu(torch.full((seq_len, seq_len), float('-inf')), diagonal=1)
+            self.causal_mask = mask.to(self.device)
+        return self.causal_mask
+    
+    def transformer(self, x, max_seq_length=None, dtype=None, use_causal_mask=True):
         """
         Thin wrapper so existing code calling self.transformer(...) still works.
         We accept (batch, seq, emb) and return (batch, seq, emb).
         dtype argument is accepted for API compatibility - we won't dynamically change types here.
+        use_causal_mask: if True, apply causal masking to prevent future token attention
         """
         x = self._apply_positional_embedding(x)
-        out = self.transformer_encoder(x)  # (batch, seq, emb)
+        
+        if use_causal_mask:
+            seq_len = x.size(1)
+            attn_mask = self._get_causal_mask(seq_len)
+            out = self.transformer_encoder(x, mask=attn_mask)  # (batch, seq, emb)
+        else:
+            out = self.transformer_encoder(x)  # (batch, seq, emb)
         return out
 
     def forward(self, x):
@@ -71,9 +92,11 @@ class AD(torch.nn.Module):
         context_embed = self.embed_context(context)
         context_embed, _ = pack([context_embed, query_states_embed], 'b * d')
 
+        # Apply causal masking during training to prevent future information leakage
         transformer_output = self.transformer(context_embed,
                                               max_seq_length=self.max_seq_length,
-                                              dtype=self.mixed_precision)
+                                              dtype=self.mixed_precision,
+                                              use_causal_mask=True)
 
         result = {}
 
@@ -104,9 +127,11 @@ class AD(torch.nn.Module):
         for step in range(eval_timesteps):
             query_states_prev = query_states.clone().detach().to(torch.float)
 
+            # During evaluation, we still use causal masking for consistency
             output = self.transformer(transformer_input,
                                         max_seq_length=self.max_seq_length,
-                                        dtype='fp32')
+                                        dtype='fp32',
+                                        use_causal_mask=True)
 
             logits = self.pred_action(output[:, -1])
 
